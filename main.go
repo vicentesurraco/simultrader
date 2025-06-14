@@ -2,13 +2,24 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/labstack/echo/v4"
+	"fmt"
 	"io"
 	"net/http"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
+var _, _ = fmt.Print("")
+
 type User struct {
-	Name string `json:"username"`
+	Name         string    `json:"name" validate:"required,min=3,max=30"`
+	Password     string    `json:"password" validate:"required,min=8"`
+	PasswordHash string    `json:"-"`
+	Email        string    `json:"email" validate:"required"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type Stonk struct {
@@ -20,13 +31,28 @@ type Trade struct {
 	Action string `json:"action"`
 }
 
-func getUser(c echo.Context) error {
+func loginUser(c echo.Context) error {
 	id := c.Param("id")
 	return c.JSON(http.StatusOK, id)
 }
 
-func saveUser(c echo.Context) error {
-	return c.JSON(http.StatusOK, "User saved.")
+func createUser(c echo.Context) error {
+	var user = User{}
+	err := c.Bind(&user)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Failed to create user")
+	}
+	var hashedPassword []byte
+	hashedPassword, err = bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	user.PasswordHash = string(hashedPassword)
+	user.Password = ""
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Failed to encrypt password")
+	}
+	return c.JSON(http.StatusCreated, map[string]string{
+		"message":  "User created successfully",
+		"username": user.Name,
+	})
 }
 
 func updateUser(c echo.Context) error {
@@ -48,7 +74,7 @@ func saveStonk(c echo.Context) error {
 	data := make(map[string]interface{})
 
 	if err = json.Unmarshal(body, &data); err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid JSON")
+		return c.JSON(http.StatusBadRequest, "Failed to save stonk")
 	}
 
 	// add to db
@@ -69,13 +95,13 @@ func deleteStonk(c echo.Context) error {
 func tradeStonk(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, "failed to trade stonk")
 	}
 
 	data := make(map[string]interface{})
 
 	if err = json.Unmarshal(body, &data); err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid JSON")
+		return c.JSON(http.StatusBadRequest, "failed to trade stonk")
 	}
 
 	// remove from db
@@ -94,8 +120,8 @@ func main() {
 	e.Logger.Fatal(e.Start(":1323"))
 
 	// user routes
-	e.POST("/users", saveUser)
-	e.GET("/users/:id", getUser)
+	e.POST("/users", createUser)
+	e.GET("/users/:id", loginUser)
 	e.PUT("/users/:id", updateUser)
 	e.DELETE("/users/:id", deleteUser)
 

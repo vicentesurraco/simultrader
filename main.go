@@ -7,11 +7,16 @@ import (
 	"net/http"
 	"time"
 
+	"database/sql"
 	"github.com/labstack/echo/v4"
+	_ "github.com/lib/pq"
+	db "github.com/vicentesurraco/simutrader2/internal/database"
 	"golang.org/x/crypto/bcrypt"
+	"os"
 )
 
 var _, _ = fmt.Print("")
+var queries *db.Queries
 
 type User struct {
 	Name         string    `json:"name" validate:"required,min=3,max=30"`
@@ -31,6 +36,15 @@ type Trade struct {
 	Action string `json:"action"`
 }
 
+func init() {
+	connStr := os.Getenv("DATABASE_URL")
+	conn, err := sql.Open("postgres", connStr)
+	if err != nil {
+		fmt.Errorf((err.Error()))
+	}
+	queries = db.New(conn)
+}
+
 func loginUser(c echo.Context) error {
 	id := c.Param("id")
 	return c.JSON(http.StatusOK, id)
@@ -48,6 +62,18 @@ func createUser(c echo.Context) error {
 	user.Password = ""
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, "Failed to encrypt password")
+	}
+
+	ctx := c.Request().Context()
+	_, err = queries.CreateUser(ctx, db.CreateUserParams{
+		Name:         user.Name,
+		PasswordHash: user.PasswordHash,
+		Email:        user.Email,
+	})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to create user",
+		})
 	}
 	return c.JSON(http.StatusCreated, map[string]string{
 		"message":  "User created successfully",

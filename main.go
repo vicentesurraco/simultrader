@@ -66,23 +66,48 @@ func init() {
 	queries = db.New(conn)
 }
 
+// TODO: jwt token, rate limiting, input validation, logging
 func loginUser(c echo.Context) error {
-	id := c.Param("id")
-	return c.JSON(http.StatusOK, id)
+	var user = User{}
+	err := c.Bind(&user)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	ctx := c.Request().Context()
+
+	dbUser, err := queries.GetUser(ctx, user.Name)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Server error"})
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(dbUser.PasswordHash), []byte(user.Password))
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"user_id": dbUser.ID,
+		"message": "Login successful",
+	})
 }
 
 func createUser(c echo.Context) error {
 	var user = User{}
 	err := c.Bind(&user)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Failed to create user")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to create user"})
 	}
 	var hashedPassword []byte
 	hashedPassword, err = bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	user.PasswordHash = string(hashedPassword)
 	user.Password = ""
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Failed to encrypt password")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to encrypt password"})
 	}
 
 	ctx := c.Request().Context()
@@ -121,7 +146,7 @@ func saveStonk(c echo.Context) error {
 	data := make(map[string]interface{})
 
 	if err = json.Unmarshal(body, &data); err != nil {
-		return c.JSON(http.StatusBadRequest, "Failed to save stonk")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to save stonk"})
 	}
 
 	// add to db
@@ -142,13 +167,13 @@ func deleteStonk(c echo.Context) error {
 func tradeStonk(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "failed to trade stonk")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "failed to trade stonk"})
 	}
 
 	data := make(map[string]interface{})
 
 	if err = json.Unmarshal(body, &data); err != nil {
-		return c.JSON(http.StatusBadRequest, "failed to trade stonk")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "failed to trade stonk"})
 	}
 
 	// remove from db

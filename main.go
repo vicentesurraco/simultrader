@@ -19,21 +19,42 @@ var _, _ = fmt.Print("")
 var queries *db.Queries
 
 type User struct {
-	Name         string    `json:"name" validate:"required,min=3,max=30"`
+	ID           int       `json:"id" db:"id"`
+	Name         string    `json:"name" validate:"required,min=3,max=30" db:"unique"`
 	Password     string    `json:"password" validate:"required,min=8"`
 	PasswordHash string    `json:"-"`
-	Email        string    `json:"email" validate:"required"`
-	CreatedAt    time.Time `json:"created_at"`
+	Email        string    `json:"email" validate:"required,email"`
+	CreatedAt    time.Time `json:"created_at" db:"unique"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type Stonk struct {
-	Name string `json:"stonk"`
+	Symbol string  `json:"symbol"`
+	Price  float64 `json:"price"`
+}
+
+type Position struct {
+	Symbol string  `json:"symbol"`
+	Shares int     `json:"shares"`
+	Price  float64 `json:"price"`
 }
 
 type Trade struct {
-	Name   string `json:"stonk"`
-	Action string `json:"action"`
+	ID        int       `json:"id"`
+	UserID    int       `json:"user_id"`
+	Symbol    string    `json:"symbol"`
+	Action    string    `json:"action"` // buy or sell
+	Shares    int       `json:"shares"`
+	Price     float64   `json:"price"` // average price
+	Total     float64   `json:"total"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type Portfolio struct {
+	UserID     int                 `json:"user_id"`
+	Cash       float64             `json:"cash"`
+	Positions  map[string]Position `json:"positions"` // key: symbol
+	TotalValue float64             `json:"total_value"`
 }
 
 func init() {

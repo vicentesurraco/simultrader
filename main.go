@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"database/sql"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 	db "github.com/vicentesurraco/simutrader2/internal/database"
@@ -24,7 +25,7 @@ type User struct {
 	Password     string    `json:"password" validate:"required,min=8"`
 	PasswordHash string    `json:"-"`
 	Email        string    `json:"email" validate:"required,email"`
-	CreatedAt    time.Time `json:"created_at" db:"unique"`
+	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
@@ -58,7 +59,12 @@ type Portfolio struct {
 }
 
 func init() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Errorf("env did not load")
+	}
 	connStr := os.Getenv("DATABASE_URL")
+	fmt.Printf("connstr is %s", connStr)
 	conn, err := sql.Open("postgres", connStr)
 	if err != nil {
 		fmt.Errorf((err.Error()))
@@ -100,7 +106,7 @@ func createUser(c echo.Context) error {
 	var user = User{}
 	err := c.Bind(&user)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to create user"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to create user early"})
 	}
 	var hashedPassword []byte
 	hashedPassword, err = bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
@@ -118,7 +124,7 @@ func createUser(c echo.Context) error {
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to create user",
+			"error": fmt.Sprintf("Failed to create user at db step: %s", err.Error()),
 		})
 	}
 	return c.JSON(http.StatusCreated, map[string]string{
@@ -134,10 +140,12 @@ func updateUser(c echo.Context) error {
 
 func deleteUser(c echo.Context) error {
 	id := c.Param("id")
+	// check if user is authenticated
+	// delete from db
 	return c.JSON(http.StatusOK, id)
 }
 
-func saveStonk(c echo.Context) error {
+func subStonk(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		return err
@@ -155,7 +163,7 @@ func saveStonk(c echo.Context) error {
 	return c.JSON(http.StatusOK, "")
 }
 
-func deleteStonk(c echo.Context) error {
+func unsubStonk(c echo.Context) error {
 	id := c.Param("id")
 
 	// remove from db
@@ -189,20 +197,20 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.Logger.Fatal(e.Start(":1323"))
 
 	// user routes
+	e.POST("/login", loginUser)
 	e.POST("/users", createUser)
-	e.GET("/users/:id", loginUser)
 	e.PUT("/users/:id", updateUser)
 	e.DELETE("/users/:id", deleteUser)
 
 	// sub/unsub routes
-	e.POST("/stonks", saveStonk)
-	e.DELETE("/stonks/:id", deleteStonk)
+	e.POST("/stonks", subStonk)
+	e.DELETE("/stonks/:id", unsubStonk)
 
 	// buy/sell routes
 	e.POST("/trade", tradeStonk)
+	e.Logger.Fatal(e.Start(":1323"))
 
 }
 

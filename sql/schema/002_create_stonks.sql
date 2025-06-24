@@ -1,0 +1,4 @@
+CREATE TABLE stonks(
+	id SERIAL PRIMARY KEY
+		
+)

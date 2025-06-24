@@ -8,6 +8,10 @@ import (
 	"database/sql"
 )
 
+type Stonk struct {
+	ID int32
+}
+
 type User struct {
 	ID           int32
 	Name         string

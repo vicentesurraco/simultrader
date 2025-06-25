@@ -9,7 +9,10 @@ import (
 )
 
 type Stonk struct {
-	ID int32
+	ID       int32
+	UserID   int32
+	Symbol   string
+	IsActive sql.NullBool
 }
 
 type User struct {

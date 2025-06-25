@@ -29,6 +29,11 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+type SubStonkReq struct {
+	UserID int32  `json:"user_id"`
+	Symbol string `json:"symbol"`
+}
+
 type Stonk struct {
 	Symbol string  `json:"symbol"`
 	Price  float64 `json:"price"`
@@ -64,12 +69,18 @@ func init() {
 		fmt.Errorf("env did not load")
 	}
 	connStr := os.Getenv("DATABASE_URL")
-	fmt.Printf("connstr is %s", connStr)
 	conn, err := sql.Open("postgres", connStr)
 	if err != nil {
 		fmt.Errorf((err.Error()))
 	}
 	queries = db.New(conn)
+	if err := openFinnhubWebsocket(); err != nil {
+		panic("failed to open websocket")
+	}
+}
+
+func openFinnhubWebsocket() error {
+	return nil
 }
 
 // TODO: jwt token, rate limiting, input validation, logging
@@ -146,15 +157,17 @@ func deleteUser(c echo.Context) error {
 }
 
 func subStonk(c echo.Context) error {
-	body, err := io.ReadAll(c.Request().Body)
-	if err != nil {
-		return err
+
+	ctx := c.Request().Context()
+
+	var subStonkReq SubStonkReq
+	if err := c.Bind(&subStonkReq); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request format"})
 	}
 
-	data := make(map[string]interface{})
-
-	if err = json.Unmarshal(body, &data); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to save stonk"})
+	stonk := db.SubStonkParams{UserID: subStonkReq.UserID, Symbol: subStonkReq.Symbol}
+	if err := queries.SubStonk(ctx, stonk); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request format"})
 	}
 
 	// add to db
